@@ -1,18 +1,17 @@
-import './assets/css/main.css'
+import "./assets/css/main.css";
 
-import { createApp } from 'vue'
-import { createRouter, createWebHistory } from 'vue-router'
-import ui from '@nuxt/ui/vue-plugin'
+import { createApp } from "vue";
 
-import App from './App.vue'
+import ui from "@nuxt/ui/vue-plugin";
 
-const app = createApp(App)
+import App from "./App.vue";
 
-app.use(createRouter({
-  routes: [{ path: '/', component: () => import('./pages/index.vue') }],
-  history: createWebHistory()
-}))
+import router from "./router";
 
-app.use(ui)
+const app = createApp(App);
 
-app.mount('#app')
+app.use(router);
+
+app.use(ui);
+
+app.mount("#app");
