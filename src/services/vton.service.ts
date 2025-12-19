@@ -4,13 +4,10 @@ import type {
 	VTONResponse,
 	GradioStatusEvent,
 	GradioDataEvent,
+	ProgressInfo,
 } from "../types/index.js";
 
-export type ProgressCallback = (
-	status: string,
-	progress?: number,
-	message?: string
-) => void;
+export type ProgressCallback = (info: ProgressInfo) => void;
 
 export class VTONService {
 	private readonly spaceId = "yisol/IDM-VTON";
@@ -20,13 +17,33 @@ export class VTONService {
 		request: VTONRequest,
 		onProgress?: ProgressCallback
 	): Promise<VTONResponse> {
+		// Track state for accurate progress
+		let lastKnownEta: number | undefined;
+		let lastQueuePosition: number | undefined;
+		let lastQueueSize: number | undefined;
+		let processingStartTime: number | undefined;
+
+		const sendProgress = (info: Partial<ProgressInfo>) => {
+			onProgress?.({
+				status: info.status ?? "processing",
+				progress: info.progress ?? 0,
+				message: info.message ?? "Processing...",
+				eta: info.eta ?? lastKnownEta,
+				queuePosition: info.queuePosition ?? lastQueuePosition,
+				queueSize: info.queueSize ?? lastQueueSize,
+				stepProgress: info.stepProgress,
+			});
+		};
+
 		try {
 			console.log("Connecting to Gradio space:", this.spaceId);
-			onProgress?.("connecting", 10, "Connecting to Gradio space...");
+			sendProgress({
+				status: "connecting",
+				progress: 5,
+				message: "Connecting to Gradio space...",
+			});
 
-			// Get HF token from environment variable if available
 			const hfToken = process.env.HF_TOKEN;
-
 			if (hfToken) {
 				console.log("Using Hugging Face authentication token");
 			} else {
@@ -51,7 +68,11 @@ export class VTONService {
 			};
 
 			console.log("Sending request to Gradio API...");
-			onProgress?.("submitting", 20, "Submitting request...");
+			sendProgress({
+				status: "submitting",
+				progress: 10,
+				message: "Submitting request to server...",
+			});
 
 			const job = app.submit(this.apiName, [
 				imageEditorData,
@@ -63,110 +84,159 @@ export class VTONService {
 				request.seed ?? 42,
 			]);
 
-			let result: any = null;
-			let completed = false;
+			// Use Promise wrapper with async IIFE to handle iterator properly
+			return new Promise<VTONResponse>((resolve, reject) => {
+				(async () => {
+					try {
+						for await (const event of job) {
+							console.log("Job event:", JSON.stringify(event));
 
-			// Start timer-based progress updates (estimated 60-70 seconds total)
-			const startTime = Date.now();
-			const estimatedDuration = 65000; // 65 seconds average
+							if (event.type === "status") {
+								const statusEvent = event as unknown as GradioStatusEvent;
+								const stage = statusEvent.stage;
 
-			const progressInterval = setInterval(() => {
-				if (completed) {
-					clearInterval(progressInterval);
-					return;
-				}
+								if (statusEvent.eta !== undefined) {
+									lastKnownEta = statusEvent.eta;
+								}
+								if (statusEvent.position !== undefined) {
+									lastQueuePosition = statusEvent.position;
+								}
+								if (statusEvent.queue_size !== undefined) {
+									lastQueueSize = statusEvent.queue_size;
+								}
 
-				const elapsed = Date.now() - startTime;
-				const progress = Math.min(90, 20 + (elapsed / estimatedDuration) * 70);
-				const remaining = Math.max(
-					0,
-					Math.ceil((estimatedDuration - elapsed) / 1000)
-				);
+								if (stage === "pending") {
+									const positionText =
+										lastQueuePosition !== undefined
+											? `Position ${lastQueuePosition + 1}${lastQueueSize ? ` of ${lastQueueSize}` : ""}`
+											: "Waiting in queue";
+									const etaText = lastKnownEta
+										? ` (ETA: ${Math.ceil(lastKnownEta)}s)`
+										: "";
 
-				let message = "Processing images...";
-				if (elapsed < 5000) {
-					message = "Connecting to server...";
-				} else if (elapsed < 10000) {
-					message = "Waiting in queue...";
-				} else if (elapsed < 20000) {
-					message = "Starting AI processing...";
-				} else if (remaining > 15) {
-					message = `AI is working hard... (~${remaining}s remaining)`;
-				} else if (remaining > 5) {
-					message = `Almost done! (~${remaining}s remaining)`;
-				} else {
-					message = "Finalizing your result...";
-				}
+									sendProgress({
+										status: "pending",
+										progress: 15,
+										message: `${positionText}${etaText}...`,
+										queuePosition: lastQueuePosition,
+										queueSize: lastQueueSize,
+										eta: lastKnownEta,
+									});
+								} else if (stage === "generating") {
+									if (!processingStartTime) {
+										processingStartTime = Date.now();
+									}
 
-				onProgress?.("processing", progress, message);
-			}, 1000); // Update every second
+									let stepProgress: ProgressInfo["stepProgress"] | undefined;
+									let progressPercent = 20;
 
-			// Listen to events from the job
-			try {
-				for await (const event of job) {
-					console.log("Job event:", event);
+									if (
+										statusEvent.progress_data &&
+										statusEvent.progress_data.length > 0
+									) {
+										const pd = statusEvent.progress_data[0];
+										stepProgress = {
+											current: pd.index,
+											total: pd.length,
+											unit: pd.unit || "steps",
+										};
+										progressPercent = 20 + (pd.index / pd.length) * 75;
+									} else if (statusEvent.progress !== undefined) {
+										progressPercent = 20 + statusEvent.progress * 75;
+									} else if (lastKnownEta && processingStartTime) {
+										const elapsed = (Date.now() - processingStartTime) / 1000;
+										const estimatedTotal = elapsed + lastKnownEta;
+										progressPercent = Math.min(
+											90,
+											20 + (elapsed / estimatedTotal) * 75
+										);
+									}
 
-					if (event.type === "status") {
-						const statusEvent = event as unknown as GradioStatusEvent;
-						const stage = statusEvent.stage;
-						console.log("Status stage:", stage);
+									const etaText = lastKnownEta
+										? ` (~${Math.ceil(lastKnownEta)}s remaining)`
+										: "";
+									const stepText = stepProgress
+										? `Step ${stepProgress.current}/${stepProgress.total}`
+										: "Processing";
 
-						if (stage === "pending") {
-							onProgress?.("pending", 30, "Request in queue...");
-						} else if (stage === "generating") {
-							// 'processing' is often 'generating' in newer versions, checking both or sticking to known ones
-							onProgress?.("processing", 50, "Processing images...");
-						} else if (stage === "complete") {
-							onProgress?.("complete", 95, "Finalizing results...");
+									sendProgress({
+										status: "generating",
+										progress: Math.min(95, progressPercent),
+										message: `${stepText}${etaText}`,
+										eta: lastKnownEta,
+										stepProgress,
+									});
+								} else if (stage === "complete") {
+									sendProgress({
+										status: "complete",
+										progress: 98,
+										message: "Finalizing results...",
+									});
+								} else if (stage === "error") {
+									sendProgress({
+										status: "error",
+										progress: 0,
+										message: statusEvent.message || "An error occurred",
+									});
+								}
+							} else if (event.type === "data") {
+								const dataEvent = event as unknown as GradioDataEvent;
+
+								sendProgress({
+									status: "complete",
+									progress: 100,
+									message: "Done!",
+								});
+
+								console.log("Received response from Gradio API");
+								console.log(
+									"Response data:",
+									JSON.stringify(dataEvent.data, null, 2)
+								);
+
+								if (!dataEvent.data || dataEvent.data.length < 2) {
+									reject(new Error("Invalid response from Gradio API"));
+									return;
+								}
+
+								const outputImage =
+									typeof dataEvent.data[0] === "object" &&
+									dataEvent.data[0] !== null
+										? (dataEvent.data[0] as any).url
+										: dataEvent.data[0];
+
+								const maskedImage =
+									typeof dataEvent.data[1] === "object" &&
+									dataEvent.data[1] !== null
+										? (dataEvent.data[1] as any).url
+										: dataEvent.data[1];
+
+								console.log("Output image URL:", outputImage);
+								console.log("Masked image URL:", maskedImage);
+								console.log("Returning successful response");
+
+								resolve({
+									success: true,
+									outputImage,
+									maskedImage,
+								});
+								return; // Exit the async function immediately after resolve
+							}
 						}
-					} else if (event.type === "data") {
-						const dataEvent = event as unknown as GradioDataEvent;
-						result = dataEvent;
-						completed = true;
-						clearInterval(progressInterval);
-						onProgress?.("complete", 95, "Finalizing results...");
+						// If loop finishes without data
+						reject(new Error("Stream finished without returning data"));
+					} catch (err) {
+						reject(err);
 					}
-				}
-			} finally {
-				clearInterval(progressInterval);
-				completed = true;
-			}
-
-			console.log("Received response from Gradio API");
-			console.log("Response data:", JSON.stringify(result.data, null, 2));
-
-			if (!result.data || result.data.length < 2) {
-				throw new Error("Invalid response from Gradio API");
-			}
-
-			// Gradio API returns objects with 'url' property, not direct strings
-			const outputImage =
-				typeof result.data[0] === "object" && result.data[0] !== null
-					? (result.data[0] as any).url
-					: result.data[0];
-
-			const maskedImage =
-				typeof result.data[1] === "object" && result.data[1] !== null
-					? (result.data[1] as any).url
-					: result.data[1];
-
-			console.log("Output image URL:", outputImage);
-			console.log("Masked image URL:", maskedImage);
-
-			onProgress?.("done", 100, "Complete!");
-
-			return {
-				success: true,
-				outputImage,
-				maskedImage,
-			};
+				})();
+			});
 		} catch (error) {
 			console.error("Error processing virtual try-on:", error);
-			onProgress?.(
-				"error",
-				0,
-				error instanceof Error ? error.message : "Unknown error"
-			);
+			sendProgress({
+				status: "error",
+				progress: 0,
+				message: error instanceof Error ? error.message : "Unknown error",
+			});
 			return {
 				success: false,
 				error:

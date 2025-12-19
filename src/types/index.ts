@@ -46,6 +46,16 @@ export interface GradioStatusEvent {
 	time?: Date;
 	progress?: number;
 	message?: string;
+	progress_data?: GradioProgressData[] | null;
+	queue_size?: number;
+}
+
+export interface GradioProgressData {
+	index: number;
+	length: number;
+	unit: string;
+	progress: number;
+	desc: string | null;
 }
 
 export interface GradioDataEvent {
@@ -53,4 +63,18 @@ export interface GradioDataEvent {
 	endpoint: string;
 	data: any[];
 	time: Date;
+}
+
+export interface ProgressInfo {
+	status: string;
+	progress: number;
+	message: string;
+	eta?: number;
+	queuePosition?: number;
+	queueSize?: number;
+	stepProgress?: {
+		current: number;
+		total: number;
+		unit: string;
+	};
 }
