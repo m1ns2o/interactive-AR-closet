@@ -10,8 +10,10 @@ import type {
 export type ProgressCallback = (info: ProgressInfo) => void;
 
 export class VTONService {
-	private readonly spaceId = "yisol/IDM-VTON";
+	private readonly spaceId = "m1ns2o/IDM-VTON";
 	private readonly apiName = "/tryon";
+	// Estimated processing time in seconds (based on typical IDM-VTON runs)
+	private readonly ESTIMATED_PROCESSING_TIME = 30;
 
 	async processTryOn(
 		request: VTONRequest,
@@ -22,6 +24,7 @@ export class VTONService {
 		let lastQueuePosition: number | undefined;
 		let lastQueueSize: number | undefined;
 		let processingStartTime: number | undefined;
+		let progressUpdateInterval: ReturnType<typeof setInterval> | undefined;
 
 		const sendProgress = (info: Partial<ProgressInfo>) => {
 			onProgress?.({
@@ -84,6 +87,30 @@ export class VTONService {
 				request.seed ?? 42,
 			]);
 
+			// Start progress interval immediately after job submission
+			processingStartTime = Date.now();
+			progressUpdateInterval = setInterval(() => {
+				if (!processingStartTime) return;
+
+				const elapsed = (Date.now() - processingStartTime) / 1000;
+				const estimatedTotal = this.ESTIMATED_PROCESSING_TIME;
+
+				// Progress from 15% to 95% based on elapsed time
+				// Use easing function for more natural feel
+				const rawProgress = elapsed / estimatedTotal;
+				const easedProgress = 1 - Math.pow(1 - Math.min(rawProgress, 1), 2);
+				const progressPercent = 15 + easedProgress * 80;
+
+				const remainingTime = Math.max(0, Math.ceil(estimatedTotal - elapsed));
+
+				sendProgress({
+					status: "generating",
+					progress: Math.min(95, progressPercent),
+					message: `Generating... (~${remainingTime}s remaining)`,
+					eta: remainingTime,
+				});
+			}, 500);
+
 			// Use Promise wrapper with async IIFE to handle iterator properly
 			return new Promise<VTONResponse>((resolve, reject) => {
 				(async () => {
@@ -123,56 +150,15 @@ export class VTONService {
 										eta: lastKnownEta,
 									});
 								} else if (stage === "generating") {
-									if (!processingStartTime) {
-										processingStartTime = Date.now();
-									}
-
-									let stepProgress: ProgressInfo["stepProgress"] | undefined;
-									let progressPercent = 20;
-
-									if (
-										statusEvent.progress_data &&
-										statusEvent.progress_data.length > 0
-									) {
-										const pd = statusEvent.progress_data[0];
-										stepProgress = {
-											current: pd.index,
-											total: pd.length,
-											unit: pd.unit || "steps",
-										};
-										progressPercent = 20 + (pd.index / pd.length) * 75;
-									} else if (statusEvent.progress !== undefined) {
-										progressPercent = 20 + statusEvent.progress * 75;
-									} else if (lastKnownEta && processingStartTime) {
-										const elapsed = (Date.now() - processingStartTime) / 1000;
-										const estimatedTotal = elapsed + lastKnownEta;
-										progressPercent = Math.min(
-											90,
-											20 + (elapsed / estimatedTotal) * 75
-										);
-									}
-
-									const etaText = lastKnownEta
-										? ` (~${Math.ceil(lastKnownEta)}s remaining)`
-										: "";
-									const stepText = stepProgress
-										? `Step ${stepProgress.current}/${stepProgress.total}`
-										: "Processing";
-
-									sendProgress({
-										status: "generating",
-										progress: Math.min(95, progressPercent),
-										message: `${stepText}${etaText}`,
-										eta: lastKnownEta,
-										stepProgress,
-									});
+									// Progress is handled by the main interval
 								} else if (stage === "complete") {
-									sendProgress({
-										status: "complete",
-										progress: 98,
-										message: "Finalizing results...",
-									});
+									// Just wait for data event
 								} else if (stage === "error") {
+									// Clear progress interval
+									if (progressUpdateInterval) {
+										clearInterval(progressUpdateInterval);
+										progressUpdateInterval = undefined;
+									}
 									sendProgress({
 										status: "error",
 										progress: 0,
@@ -180,6 +166,12 @@ export class VTONService {
 									});
 								}
 							} else if (event.type === "data") {
+								// Clear progress interval
+								if (progressUpdateInterval) {
+									clearInterval(progressUpdateInterval);
+									progressUpdateInterval = undefined;
+								}
+
 								const dataEvent = event as unknown as GradioDataEvent;
 
 								sendProgress({
@@ -224,8 +216,16 @@ export class VTONService {
 							}
 						}
 						// If loop finishes without data
+						if (progressUpdateInterval) {
+							clearInterval(progressUpdateInterval);
+							progressUpdateInterval = undefined;
+						}
 						reject(new Error("Stream finished without returning data"));
 					} catch (err) {
+						if (progressUpdateInterval) {
+							clearInterval(progressUpdateInterval);
+							progressUpdateInterval = undefined;
+						}
 						reject(err);
 					}
 				})();
