@@ -15,6 +15,16 @@ const items: NavigationMenuItem[] = [
     to: "/",
   },
   {
+    label: "Personal Color",
+    icon: "i-lucide-palette",
+    to: "/personal-color",
+  },
+  {
+    label: "Face Shape",
+    icon: "i-lucide-scan-face",
+    to: "/face-shape",
+  },
+  {
     label: "History",
     icon: "i-lucide-history",
     to: "/history",

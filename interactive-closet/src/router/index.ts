@@ -1,12 +1,24 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Index from "../pages/index.vue";
 import Test from "../pages/test.vue";
+import PersonalColor from "../pages/personal-color.vue";
+import FaceShape from "../pages/face-shape.vue";
 
 const routes = [
   {
     path: "/",
     name: "Home",
     component: Index,
+  },
+  {
+    path: "/personal-color",
+    name: "PersonalColor",
+    component: PersonalColor,
+  },
+  {
+    path: "/face-shape",
+    name: "FaceShape",
+    component: FaceShape,
   },
   {
     path: "/test",
