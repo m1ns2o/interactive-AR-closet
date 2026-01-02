@@ -139,7 +139,6 @@ async function handleSubmit() {
   maskedImage.value = null;
   isProcessing.value = true;
   progress.value = 0;
-  progressMessage.value = "Initializing...";
   processingStatus.value = "connecting";
   eta.value = undefined;
   queuePosition.value = undefined;
@@ -211,13 +210,14 @@ async function handleSubmit() {
       outputImage.value = result.outputImage;
       maskedImage.value = result.maskedImage;
       progress.value = 100;
-      progressMessage.value = "Complete!";
+      progressMessage.value = "완료되었습니다!";
     } else {
-      error.value = result.error || "An error occurred";
+      error.value = result.error || "오류가 발생했습니다";
     }
   } catch (err) {
     closeEventSource();
-    error.value = err instanceof Error ? err.message : "Network error occurred";
+    error.value =
+      err instanceof Error ? err.message : "네트워크 오류가 발생했습니다";
   } finally {
     stopElapsedTimer();
     isProcessing.value = false;
@@ -246,10 +246,10 @@ async function handleSubmit() {
         >
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-user" class="w-5 h-5 text-primary-500" />
-            <h3 class="font-medium">Your Photo</h3>
+            <h3 class="font-medium">나의 사진</h3>
           </div>
           <UBadge v-if="humanImage" color="green" variant="subtle" size="xs">
-            Uploaded
+            업로드됨
           </UBadge>
         </div>
 
@@ -271,9 +271,7 @@ async function handleSubmit() {
             <div
               class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
             >
-              <UButton color="white" icon="i-lucide-refresh-cw">
-                Change
-              </UButton>
+              <UButton color="white" icon="i-lucide-refresh-cw"> 변경 </UButton>
             </div>
           </div>
           <div v-else class="text-center p-6">
@@ -285,8 +283,8 @@ async function handleSubmit() {
                 class="w-7 h-7 text-primary-500"
               />
             </div>
-            <p class="font-medium mb-1 text-sm">Upload Photo</p>
-            <p class="text-xs text-gray-500">Click or drop</p>
+            <p class="font-medium mb-1 text-sm">사진 업로드</p>
+            <p class="text-xs text-gray-500">클릭하거나 드래그하세요</p>
           </div>
 
           <input
@@ -308,10 +306,10 @@ async function handleSubmit() {
         >
           <div class="flex items-center gap-2">
             <UIcon name="i-lucide-shirt" class="w-5 h-5 text-primary-500" />
-            <h3 class="font-medium">Garment</h3>
+            <h3 class="font-medium">의상 사진</h3>
           </div>
           <UBadge v-if="garmentImage" color="green" variant="subtle" size="xs">
-            Uploaded
+            업로드됨
           </UBadge>
         </div>
 
@@ -333,9 +331,7 @@ async function handleSubmit() {
             <div
               class="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center"
             >
-              <UButton color="white" icon="i-lucide-refresh-cw">
-                Change
-              </UButton>
+              <UButton color="white" icon="i-lucide-refresh-cw"> 변경 </UButton>
             </div>
           </div>
           <div v-else class="text-center p-6">
@@ -347,8 +343,8 @@ async function handleSubmit() {
                 class="w-7 h-7 text-primary-500"
               />
             </div>
-            <p class="font-medium mb-1 text-sm">Upload Garment</p>
-            <p class="text-xs text-gray-500">Click or drop</p>
+            <p class="font-medium mb-1 text-sm">의상 업로드</p>
+            <p class="text-xs text-gray-500">클릭하거나 드래그하세요</p>
           </div>
 
           <input
@@ -374,10 +370,10 @@ async function handleSubmit() {
               :class="outputImage ? 'text-green-500' : 'text-gray-400'"
               class="w-5 h-5"
             />
-            <h3 class="font-medium">Result</h3>
+            <h3 class="font-medium">결과</h3>
           </div>
           <UBadge v-if="outputImage" color="green" variant="subtle" size="xs">
-            Complete
+            완료
           </UBadge>
         </div>
 
@@ -401,7 +397,7 @@ async function handleSubmit() {
                 :to="outputImage"
                 target="_blank"
               >
-                Download
+                다운로드
               </UButton>
             </div>
           </template>
@@ -411,7 +407,7 @@ async function handleSubmit() {
               name="i-lucide-image"
               class="w-12 h-12 mx-auto mb-2 opacity-50"
             />
-            <p class="text-sm">Result will appear here</p>
+            <p class="text-sm">결과가 여기에 표시됩니다</p>
           </div>
         </div>
       </div>
@@ -423,11 +419,11 @@ async function handleSubmit() {
         <!-- Description Input -->
         <div v-if="!outputImage" class="flex-1">
           <label class="text-xs text-gray-500 mb-1 block">
-            Description (Optional)
+            설명 (선택사항)
           </label>
           <UTextarea
             v-model="description"
-            placeholder="e.g., A person wearing a white t-shirt"
+            placeholder="예: 흰색 티셔츠를 입은 사람"
             :rows="1"
             variant="outline"
             autoresize
@@ -445,7 +441,7 @@ async function handleSubmit() {
             icon="i-lucide-sparkles"
             @click="handleSubmit"
           >
-            {{ outputImage ? "Regenerate" : "Generate Try-On" }}
+            {{ outputImage ? "다시 생성하기" : "가상 피팅 시작하기" }}
           </UButton>
         </div>
       </div>
@@ -456,10 +452,10 @@ async function handleSubmit() {
           <span class="font-medium text-gray-700">
             {{
               processingStatus === "pending"
-                ? "In Queue"
+                ? "대기 중..."
                 : processingStatus === "generating"
-                ? "Generating"
-                : "Processing"
+                ? "생성 중..."
+                : "처리 중..."
             }}
           </span>
           <span class="text-gray-700 font-mono text-sm font-medium">
@@ -480,7 +476,7 @@ async function handleSubmit() {
           class="flex items-center justify-center gap-2 text-xs text-gray-600"
         >
           <span>
-            Step {{ stepProgress.current }} / {{ stepProgress.total }}
+            단계 {{ stepProgress.current }} / {{ stepProgress.total }}
           </span>
         </div>
 
@@ -488,8 +484,8 @@ async function handleSubmit() {
           v-if="queuePosition !== undefined && processingStatus === 'pending'"
           class="text-xs text-amber-600 text-center"
         >
-          Position {{ queuePosition + 1 }}
-          <template v-if="queueSize"> of {{ queueSize }}</template>
+          대기 순서 {{ queuePosition + 1 }}
+          <template v-if="queueSize"> / {{ queueSize }}</template>
         </div>
 
         <p class="text-xs text-center text-gray-500">
@@ -499,9 +495,9 @@ async function handleSubmit() {
         <div
           class="flex items-center justify-center gap-3 text-xs text-gray-400"
         >
-          <span>{{ elapsedTime }}s elapsed</span>
+          <span>{{ elapsedTime }}초 경과</span>
           <span v-if="eta !== undefined && eta > 0">
-            ~{{ Math.ceil(eta) }}s remaining
+            ~{{ Math.ceil(eta) }}초 남음
           </span>
         </div>
       </div>
@@ -511,7 +507,7 @@ async function handleSubmit() {
         v-if="!isProcessing && !outputImage"
         class="text-xs text-gray-500 text-center mt-2"
       >
-        Processing takes 60-90 seconds
+        처리는 약 60-90초 정도 소요됩니다
       </p>
     </div>
 

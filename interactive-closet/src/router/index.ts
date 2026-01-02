@@ -1,7 +1,10 @@
 import { createRouter, createWebHistory } from "vue-router";
 import Index from "../pages/index.vue";
-import Test from "../pages/test.vue";
-import PersonalColor from "../pages/personal-color.vue";
+import PersonalColorGuide from "../pages/personal-color/index.vue";
+import PersonalColorAnalyze from "../pages/personal-color/Analyze.vue";
+import PersonalColorDefinition from "../pages/personal-color/definition.vue";
+import PersonalColorImportance from "../pages/personal-color/importance.vue";
+import PersonalColorPreparation from "../pages/personal-color/preparation.vue";
 import FaceShape from "../pages/face-shape.vue";
 
 const routes = [
@@ -12,28 +15,33 @@ const routes = [
   },
   {
     path: "/personal-color",
-    name: "PersonalColor",
-    component: PersonalColor,
+    name: "PersonalColorGuide",
+    component: PersonalColorGuide,
+  },
+  {
+    path: "/personal-color/analyze",
+    name: "PersonalColorAnalyze",
+    component: PersonalColorAnalyze,
+  },
+  {
+    path: "/personal-color/definition",
+    name: "PersonalColorDefinition",
+    component: PersonalColorDefinition,
+  },
+  {
+    path: "/personal-color/importance",
+    name: "PersonalColorImportance",
+    component: PersonalColorImportance,
+  },
+  {
+    path: "/personal-color/preparation",
+    name: "PersonalColorPreparation",
+    component: PersonalColorPreparation,
   },
   {
     path: "/face-shape",
     name: "FaceShape",
     component: FaceShape,
-  },
-  {
-    path: "/test",
-    name: "Test",
-    component: Test,
-  },
-  {
-    path: "/history",
-    name: "History",
-    component: Index, // Placeholder
-  },
-  {
-    path: "/settings",
-    name: "Settings",
-    component: Index, // Placeholder
   },
 ];
 

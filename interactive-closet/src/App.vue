@@ -10,34 +10,19 @@ colorMode.value = "light";
 
 const items: NavigationMenuItem[] = [
   {
-    label: "Virtual Try-On",
+    label: "가상 피팅",
     icon: "i-lucide-shirt",
     to: "/",
   },
   {
-    label: "Personal Color",
+    label: "퍼스널 컬러",
     icon: "i-lucide-palette",
     to: "/personal-color",
   },
   {
-    label: "Face Shape",
+    label: "얼굴형 분석",
     icon: "i-lucide-scan-face",
     to: "/face-shape",
-  },
-  {
-    label: "History",
-    icon: "i-lucide-history",
-    to: "/history",
-  },
-  {
-    label: "Settings",
-    icon: "i-lucide-settings",
-    to: "/settings",
-  },
-  {
-    label: "Test Page",
-    icon: "i-lucide-flask-conical",
-    to: "/test",
   },
 ];
 </script>
@@ -53,7 +38,7 @@ const items: NavigationMenuItem[] = [
         <template #header="{ collapsed }">
           <div v-if="!collapsed" class="flex items-center gap-2">
             <UIcon name="i-lucide-shirt" class="w-6 h-6 text-primary-500" />
-            <span class="font-bold text-lg">Closet AI</span>
+            <span class="font-bold text-lg">AR-closet</span>
           </div>
           <UIcon
             v-else

@@ -5,7 +5,7 @@ Virtual Try-On + Personal Color Analysis + Face Shape Classification
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
+from fastapi.staticfiles import StaticFiles. 
 from fastapi.responses import FileResponse, StreamingResponse
 from PIL import Image
 from pathlib import Path
