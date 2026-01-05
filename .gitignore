@@ -8,56 +8,74 @@ venv/
 env/
 .env/
 
-# Python cache
+# Python cache & compiled files
 __pycache__/
 *.py[cod]
 *$py.class
 *.pyo
 .Python
 
+# Type checking & Testing
+.mypy_cache/
+.dmypy.json
+dmypy.json
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+
 # Distribution / packaging
 build/
 dist/
+develop-eggs/
+eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
 *.egg-info/
 *.egg
+MANIFEST
+
+# Jupyter Notebook
+.ipynb_checkpoints
 
 # ===================
-# Node.js Frontend
+# Node.js / Frontend (Vue/Nuxt)
 # ===================
 
 # Dependencies
 node_modules/
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
 
-# Build output
+# Nuxt / Vue Build output
+.nuxt/
+.output/
+dist/
 interactive-closet/dist/
 backend/static/
 
-# ===================
-# Environment
-# ===================
+# Lock files (Optional: comment out if you want to commit lock files)
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
+# ===================
+# Environment Variables
+# ===================
 .env
 .env.local
 .env.*.local
 *.env
 
 # ===================
-# Logs
+# Editor / IDE
 # ===================
-
-logs/
-*.log
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
-
-# ===================
-# IDE / Editor
-# ===================
-
 .vscode/
 .idea/
 *.swp
@@ -66,18 +84,10 @@ yarn-error.log*
 .DS_Store
 
 # ===================
-# Temporary files
+# OS / System
 # ===================
-
-*.tmp
-*.temp
-.cache/
-.pytest_cache/
-
-# ===================
-# OS generated
-# ===================
-
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+.spotlight-V100
+.Trashes
