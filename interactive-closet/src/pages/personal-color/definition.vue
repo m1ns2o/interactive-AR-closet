@@ -16,9 +16,13 @@
 
         <div class="prose prose-purple max-w-none text-gray-700 space-y-6">
           <p class="text-lg leading-relaxed font-medium">
-            퍼스널 컬러(Personal Color)는 개인이 가진 고유의 신체 색상(피부,
-            눈동자, 머리카락 등)과 가장 잘 어울려서 생기가 돌고 활기차 보이게
-            하는 개개인의 색을 의미합니다.
+            개인이 가진 신체의 색과 어울리는 색을 의미해요. 퍼스널 컬러를 잘 알고
+            활용하면 생기 있고 활기찬 이미지를 낼 수 있어요.
+          </p>
+          <p class="text-lg leading-relaxed">
+            퍼스널 컬러의 유형은 크게 노란 기가 도는 <strong>웜톤</strong>과 푸른
+            기가 도는 <strong>쿨톤</strong>으로 나뉩니다. 웜톤에는 봄 웜과 가을
+            웜이 있고, 쿨톤에는 여름 쿨과 겨울 쿨이 있어요.
           </p>
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
