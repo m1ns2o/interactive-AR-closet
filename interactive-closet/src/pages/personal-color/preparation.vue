@@ -1,7 +1,18 @@
 <template>
   <div
-    class="h-full flex flex-col justify-center items-center p-6 bg-white overflow-y-auto"
+    class="relative min-h-full flex flex-col items-center pt-16 pb-8 px-6 bg-white overflow-y-auto"
   >
+    <!-- 좌측 상단 뒤로가기 버튼 -->
+    <UButton
+      to="/personal-color"
+      icon="i-lucide-arrow-left"
+      variant="ghost"
+      color="neutral"
+      class="absolute top-3 left-3 text-gray-600 hover:text-purple-600 hover:bg-purple-50"
+    >
+      뒤로가기
+    </UButton>
+
     <div class="max-w-3xl w-full flex flex-col items-center">
       <!-- Card Content -->
       <div
@@ -111,17 +122,6 @@
           </div>
         </div>
       </div>
-
-      <!-- Button Below Card -->
-      <UButton
-        to="/personal-color"
-        icon="i-lucide-arrow-left"
-        size="xl"
-        color="purple"
-        class="shadow-lg rounded-full px-8 py-3 font-bold"
-      >
-        뒤로가기
-      </UButton>
     </div>
   </div>
 </template>
