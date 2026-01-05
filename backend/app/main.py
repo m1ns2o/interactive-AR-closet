@@ -3,9 +3,12 @@ Closet AI Backend - Unified API Server
 Virtual Try-On + Personal Color Analysis + Face Shape Classification
 """
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles. 
+from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, StreamingResponse
 from PIL import Image
 from pathlib import Path
@@ -21,8 +24,8 @@ from .services import analyze_image, pil_to_cv2, analyze_face_shape, VTONService
 
 app = FastAPI(title="Closet AI API", description="Virtual Try-On, Personal Color & Face Shape Analysis")
 
-# 정적 파일 경로 설정
-STATIC_DIR = Path(__file__).parent.parent / "static"
+# 정적 파일 경로 설정 (프로젝트 루트의 public 폴더)
+STATIC_DIR = Path(__file__).parent.parent.parent / "public"
 
 # CORS 설정
 app.add_middleware(

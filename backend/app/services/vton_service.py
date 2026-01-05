@@ -57,8 +57,8 @@ class VTONService:
     """Virtual Try-On 서비스"""
 
     def __init__(self):
-        self.space_id = "m1ns2o/IDM-VTON"
-        self.api_name = "/tryon"
+        self.space_id = "m1ns2o/AI-Clothes-Changer"
+        self.api_name = "/infer"
         self.estimated_processing_time = 30  # seconds
 
     async def process_tryon(
@@ -97,8 +97,11 @@ class VTONService:
             else:
                 logger.info("No HF token found, connecting without authentication")
 
-            # Gradio Client 연결
-            client = Client(self.space_id, hf_token=hf_token)
+            # Gradio Client 연결 (verbose=False로 로그 줄임)
+            client = Client(self.space_id, token=hf_token, verbose=False)
+            # heartbeat 비활성화 (404 에러 방지)
+            if hasattr(client, '_kill_heartbeat'):
+                client._kill_heartbeat.set()
 
             # 임시 파일로 이미지 저장
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as human_file:
@@ -145,15 +148,8 @@ class VTONService:
                 result = await loop.run_in_executor(
                     None,
                     lambda: client.predict(
-                        dict={
-                            "background": handle_file(human_path),
-                            "layers": [],
-                            "composite": None
-                        },
-                        garm_img=handle_file(garment_path),
-                        garment_des=request.description,
-                        is_checked=request.auto_mask,
-                        is_checked_crop=request.auto_crop,
+                        person=handle_file(human_path),
+                        garment=handle_file(garment_path),
                         denoise_steps=request.denoising_steps,
                         seed=request.seed,
                         api_name=self.api_name
@@ -180,18 +176,27 @@ class VTONService:
             logger.info("Received response from Gradio API")
             logger.info(f"Response data: {result}")
 
-            # 결과 처리
-            if result and len(result) >= 2:
-                output_image = result[0] if isinstance(result[0], str) else None
-                masked_image = result[1] if isinstance(result[1], str) else None
+            # 결과 처리 (frogleo/AI-Clothes-Changer는 단일 이미지 반환)
+            if result:
+                output_path = result if isinstance(result, str) else None
+                logger.info(f"Output image path: {output_path}")
 
-                logger.info(f"Output image path: {output_image}")
-                logger.info(f"Masked image path: {masked_image}")
+                # 파일을 읽어서 base64로 변환
+                output_image_base64 = None
+                if output_path and os.path.exists(output_path):
+                    with open(output_path, "rb") as f:
+                        image_data = f.read()
+                        output_image_base64 = f"data:image/png;base64,{base64.b64encode(image_data).decode('utf-8')}"
+                    # 임시 파일 정리
+                    try:
+                        os.unlink(output_path)
+                    except:
+                        pass
 
                 return VTONResponse(
                     success=True,
-                    output_image=output_image,
-                    masked_image=masked_image
+                    output_image=output_image_base64,
+                    masked_image=None
                 )
             else:
                 return VTONResponse(
