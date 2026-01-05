@@ -1,17 +1,17 @@
 """
 Virtual Try-On Service
-Gradio API를 사용하여 가상 의류 착용을 수행합니다.
+Replicate API를 사용하여 가상 의류 착용을 수행합니다.
 """
 
 import asyncio
 import os
-import time
 import logging
+import base64
+import tempfile
 from typing import Callable, Optional
 from dataclasses import dataclass
-from gradio_client import Client, handle_file
-import tempfile
-import base64
+
+import replicate
 
 # 로깅 설정
 logging.basicConfig(level=logging.INFO)
@@ -34,10 +34,8 @@ class VTONRequest:
     """Virtual Try-On 요청"""
     human_image: bytes
     garment_image: bytes
-    description: str = "A person wearing the garment"
-    auto_mask: bool = True
-    auto_crop: bool = True
-    denoising_steps: int = 30
+    description: str = "A stylish garment"
+    category: str = "upper_body"  # upper_body, lower_body, dresses
     seed: int = 42
 
 
@@ -54,12 +52,11 @@ ProgressCallback = Callable[[ProgressInfo], None]
 
 
 class VTONService:
-    """Virtual Try-On 서비스"""
+    """Virtual Try-On 서비스 (Replicate API)"""
 
     def __init__(self):
-        self.space_id = "m1ns2o/AI-Clothes-Changer"
-        self.api_name = "/infer"
-        self.estimated_processing_time = 30  # seconds
+        self.model_id = "cuuupid/idm-vton:0513734a452173b8173e907e3a59d19a36266e55b48528559432bd21c7d7e985"
+        self.estimated_processing_time = 60  # seconds
 
     async def process_tryon(
         self,
@@ -87,21 +84,13 @@ class VTONService:
                 ))
 
         try:
-            logger.info(f"Connecting to Gradio space: {self.space_id}")
-            send_progress("connecting", 5, "Connecting to Gradio space...")
+            # Replicate API 토큰 확인
+            replicate_token = os.environ.get("REPLICATE_API_TOKEN")
+            if not replicate_token:
+                raise ValueError("REPLICATE_API_TOKEN 환경 변수가 설정되지 않았습니다.")
 
-            # HF Token 확인
-            hf_token = os.environ.get("HF_TOKEN")
-            if hf_token:
-                logger.info("Using Hugging Face authentication token")
-            else:
-                logger.info("No HF token found, connecting without authentication")
-
-            # Gradio Client 연결 (verbose=False로 로그 줄임)
-            client = Client(self.space_id, token=hf_token, verbose=False)
-            # heartbeat 비활성화 (404 에러 방지)
-            if hasattr(client, '_kill_heartbeat'):
-                client._kill_heartbeat.set()
+            logger.info("Starting Replicate VTON request...")
+            send_progress("connecting", 5, "Replicate API에 연결 중...")
 
             # 임시 파일로 이미지 저장
             with tempfile.NamedTemporaryFile(suffix=".png", delete=False) as human_file:
@@ -112,10 +101,10 @@ class VTONService:
                 garment_file.write(request.garment_image)
                 garment_path = garment_file.name
 
-            logger.info("Sending request to Gradio API...")
-            send_progress("submitting", 10, "Submitting request to server...")
+            send_progress("submitting", 10, "요청 제출 중...")
 
             # 진행 상황 업데이트를 위한 백그라운드 태스크
+            import time
             processing_start_time = time.time()
             progress_task_running = True
 
@@ -134,7 +123,7 @@ class VTONService:
                     send_progress(
                         "generating",
                         min(95, progress_percent),
-                        f"Generating... (~{remaining_time}s remaining)",
+                        f"AI가 이미지를 생성 중입니다... (~{remaining_time}초 남음)",
                         eta=remaining_time
                     )
                     await asyncio.sleep(0.5)
@@ -143,18 +132,24 @@ class VTONService:
             progress_task = asyncio.create_task(update_progress())
 
             try:
-                # Gradio API 호출 (블로킹 호출을 스레드풀에서 실행)
+                # Replicate API 호출
                 loop = asyncio.get_event_loop()
-                result = await loop.run_in_executor(
-                    None,
-                    lambda: client.predict(
-                        person=handle_file(human_path),
-                        garment=handle_file(garment_path),
-                        denoise_steps=request.denoising_steps,
-                        seed=request.seed,
-                        api_name=self.api_name
-                    )
-                )
+
+                def run_replicate():
+                    with open(human_path, "rb") as hf, open(garment_path, "rb") as gf:
+                        output = replicate.run(
+                            self.model_id,
+                            input={
+                                "human_img": hf,
+                                "garm_img": gf,
+                                "garment_des": request.description,
+                                "category": request.category,
+                            }
+                        )
+                        return output
+
+                result = await loop.run_in_executor(None, run_replicate)
+
             finally:
                 # 진행률 업데이트 중지
                 progress_task_running = False
@@ -171,42 +166,166 @@ class VTONService:
                 except:
                     pass
 
-            send_progress("complete", 100, "Done!")
+            send_progress("complete", 100, "완료!")
 
-            logger.info("Received response from Gradio API")
-            logger.info(f"Response data: {result}")
+            logger.info(f"Replicate response: {result}")
 
-            # 결과 처리 (frogleo/AI-Clothes-Changer는 단일 이미지 반환)
+            # 결과 처리
             if result:
-                output_path = result if isinstance(result, str) else None
-                logger.info(f"Output image path: {output_path}")
+                # Replicate는 FileOutput 객체를 반환
+                output_url = str(result) if hasattr(result, '__str__') else result.url if hasattr(result, 'url') else None
 
-                # 파일을 읽어서 base64로 변환
-                output_image_base64 = None
-                if output_path and os.path.exists(output_path):
-                    with open(output_path, "rb") as f:
-                        image_data = f.read()
+                if output_url:
+                    # URL에서 이미지 다운로드하여 base64로 변환
+                    import requests
+                    response = requests.get(output_url)
+                    if response.status_code == 200:
+                        image_data = response.content
                         output_image_base64 = f"data:image/png;base64,{base64.b64encode(image_data).decode('utf-8')}"
-                    # 임시 파일 정리
-                    try:
-                        os.unlink(output_path)
-                    except:
-                        pass
 
-                return VTONResponse(
-                    success=True,
-                    output_image=output_image_base64,
-                    masked_image=None
-                )
-            else:
-                return VTONResponse(
-                    success=False,
-                    error="Invalid response from Gradio API"
-                )
+                        return VTONResponse(
+                            success=True,
+                            output_image=output_image_base64,
+                            masked_image=None
+                        )
+
+            return VTONResponse(
+                success=False,
+                error="Replicate API에서 유효한 응답을 받지 못했습니다."
+            )
 
         except Exception as e:
             logger.error(f"Error processing virtual try-on: {e}")
             send_progress("error", 0, str(e))
+            return VTONResponse(
+                success=False,
+                error=str(e)
+            )
+
+    async def process_tryon_with_both(
+        self,
+        human_image: bytes,
+        top_image: Optional[bytes],
+        bottom_image: Optional[bytes],
+        dress_image: Optional[bytes] = None,
+        top_description: str = "A stylish top",
+        bottom_description: str = "Stylish pants",
+        dress_description: str = "A stylish dress",
+        on_progress: Optional[ProgressCallback] = None
+    ) -> VTONResponse:
+        """
+        상의, 하의, 원피스를 처리하는 Virtual Try-On
+        - 원피스가 있으면: 원피스만 단독 적용 (category="dresses")
+        - 상의/하의 둘 다 있으면: 하의 먼저 적용 -> 그 결과에 상의 적용
+        - 하나만 있으면: 해당 의류만 적용
+        """
+
+        def send_progress(
+            status: str,
+            progress: float,
+            message: str,
+            eta: Optional[float] = None
+        ):
+            if on_progress:
+                on_progress(ProgressInfo(
+                    status=status,
+                    progress=progress,
+                    message=message,
+                    eta=eta
+                ))
+
+        try:
+            current_human_image = human_image
+
+            # 원피스가 있는 경우 (단독 처리)
+            if dress_image:
+                send_progress("generating", 10, "원피스를 적용 중...")
+                result = await self.process_tryon(
+                    VTONRequest(
+                        human_image=current_human_image,
+                        garment_image=dress_image,
+                        description=dress_description,
+                        category="dresses"
+                    ),
+                    on_progress
+                )
+                return result
+
+            # 상의만 있는 경우
+            if top_image and not bottom_image:
+                send_progress("generating", 10, "상의를 적용 중...")
+                result = await self.process_tryon(
+                    VTONRequest(
+                        human_image=current_human_image,
+                        garment_image=top_image,
+                        description=top_description,
+                        category="upper_body"
+                    ),
+                    on_progress
+                )
+                return result
+
+            # 하의만 있는 경우
+            if bottom_image and not top_image:
+                send_progress("generating", 10, "하의를 적용 중...")
+                result = await self.process_tryon(
+                    VTONRequest(
+                        human_image=current_human_image,
+                        garment_image=bottom_image,
+                        description=bottom_description,
+                        category="lower_body"
+                    ),
+                    on_progress
+                )
+                return result
+
+            # 둘 다 있는 경우: 하의 먼저 -> 상의
+            if top_image and bottom_image:
+                # 1단계: 하의 적용
+                send_progress("generating", 10, "1/2 단계: 하의를 적용 중...")
+                bottom_result = await self.process_tryon(
+                    VTONRequest(
+                        human_image=current_human_image,
+                        garment_image=bottom_image,
+                        description=bottom_description,
+                        category="lower_body"
+                    )
+                )
+
+                if not bottom_result.success or not bottom_result.output_image:
+                    return VTONResponse(
+                        success=False,
+                        error=f"하의 적용 실패: {bottom_result.error}"
+                    )
+
+                # 하의 적용 결과를 다음 단계의 입력으로 사용
+                # base64 디코딩
+                bottom_image_data = bottom_result.output_image
+                if bottom_image_data.startswith("data:"):
+                    bottom_image_data = bottom_image_data.split(",")[1]
+                current_human_image = base64.b64decode(bottom_image_data)
+
+                # 2단계: 상의 적용
+                send_progress("generating", 55, "2/2 단계: 상의를 적용 중...")
+                top_result = await self.process_tryon(
+                    VTONRequest(
+                        human_image=current_human_image,
+                        garment_image=top_image,
+                        description=top_description,
+                        category="upper_body"
+                    )
+                )
+
+                return top_result
+
+            # 아무것도 없는 경우
+            return VTONResponse(
+                success=False,
+                error="상의 또는 하의 이미지를 업로드해주세요."
+            )
+
+        except Exception as e:
+            logger.error(f"Error in process_tryon_with_both: {e}")
             return VTONResponse(
                 success=False,
                 error=str(e)

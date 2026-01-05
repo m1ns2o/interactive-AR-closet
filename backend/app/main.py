@@ -114,23 +114,34 @@ async def progress_stream(session_id: str):
 @app.post("/api/tryon", response_model=VTONResponse)
 async def virtual_tryon(
     humanImage: UploadFile = File(...),
-    garmentImage: UploadFile = File(...),
-    description: str = Form("A person wearing the garment"),
-    autoMask: bool = Form(True),
-    autoCrop: bool = Form(True),
-    denoisingSteps: int = Form(30),
-    seed: int = Form(42),
+    topImage: Optional[UploadFile] = File(None),
+    bottomImage: Optional[UploadFile] = File(None),
+    dressImage: Optional[UploadFile] = File(None),
+    topDescription: str = Form("A stylish top"),
+    bottomDescription: str = Form("Stylish pants"),
+    dressDescription: str = Form("A stylish dress"),
     sessionId: Optional[str] = Form(None),
 ):
     """
-    Virtual Try-On API
-    - IDM-VTON 모델을 사용하여 의류 가상 착용
+    Virtual Try-On API (Replicate IDM-VTON)
+    - 상의/하의 개별 또는 동시 착용 지원
+    - 원피스 지원 (dresses 카테고리)
+    - 둘 다 업로드 시: 하의 먼저 적용 -> 상의 적용
     - SSE를 통한 실시간 진행 상황 업데이트 지원
     """
     try:
         # 이미지 읽기
         human_bytes = await humanImage.read()
-        garment_bytes = await garmentImage.read()
+        top_bytes = await topImage.read() if topImage else None
+        bottom_bytes = await bottomImage.read() if bottomImage else None
+        dress_bytes = await dressImage.read() if dressImage else None
+
+        # 최소 하나의 의류 이미지 필요
+        if not top_bytes and not bottom_bytes and not dress_bytes:
+            return VTONResponse(
+                success=False,
+                error="상의, 하의 또는 원피스 이미지를 최소 하나 업로드해주세요."
+            )
 
         # 진행 상황 콜백 설정
         def on_progress(info):
@@ -147,18 +158,16 @@ async def virtual_tryon(
                 )
 
         # VTON 서비스 호출
-        from .services.vton_service import VTONRequest as VTONReq
-        request = VTONReq(
+        result = await vton_service.process_tryon_with_both(
             human_image=human_bytes,
-            garment_image=garment_bytes,
-            description=description,
-            auto_mask=autoMask,
-            auto_crop=autoCrop,
-            denoising_steps=denoisingSteps,
-            seed=seed,
+            top_image=top_bytes,
+            bottom_image=bottom_bytes,
+            dress_image=dress_bytes,
+            top_description=topDescription,
+            bottom_description=bottomDescription,
+            dress_description=dressDescription,
+            on_progress=on_progress
         )
-
-        result = await vton_service.process_tryon(request, on_progress)
 
         return VTONResponse(
             success=result.success,
