@@ -175,6 +175,17 @@ function removeImage(type: "top" | "bottom" | "dress") {
   }
 }
 
+function downloadResult() {
+  if (!outputImage.value) return;
+
+  const link = document.createElement("a");
+  link.href = outputImage.value;
+  link.download = `vton-result-${Date.now()}.png`;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
+
 function startElapsedTimer() {
   const startTime = Date.now();
   elapsedTimer.value = setInterval(() => {
@@ -678,8 +689,7 @@ async function handleSubmit() {
               <UButton
                 color="white"
                 icon="i-lucide-download"
-                :to="outputImage"
-                target="_blank"
+                @click="downloadResult"
               >
                 다운로드
               </UButton>
